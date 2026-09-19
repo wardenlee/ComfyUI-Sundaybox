@@ -128,7 +128,13 @@
                 </select>
             </div>
             <div class="row-actions">
-                <input id="file-input" type="file" />
+                <!-- 隐藏的文件输入：一个用于多文件，一个用于文件夹 -->
+                <input id="file-input" type="file" multiple style="display:none;" />
+                <input id="folder-input" type="file" webkitdirectory style="display:none;" />
+                
+                <!-- 两个选择按钮 + 上传按钮 -->
+                <button id="choose-files-btn" type="button">选择文件</button>
+                <button id="choose-folder-btn" type="button">选择文件夹</button>
                 <button id="upload-btn" type="button">上传文件</button>
             </div>
         </div>
@@ -149,52 +155,60 @@
             obj: ".obj",
             glb: ".glb",
         };
-
+    
         const fileInput = document.getElementById("file-input");
+        const folderInput = document.getElementById("folder-input");
+        const chooseFilesBtn = document.getElementById("choose-files-btn");
+        const chooseFolderBtn = document.getElementById("choose-folder-btn");
+        const uploadBtn = document.getElementById("upload-btn");
         const uploadTargetSelect = document.getElementById("upload-target");
         const uploadSubdirSelect = document.getElementById("upload-subdir");
         const fileTypeSelect = document.getElementById("file-type");
-        const uploadBtn = document.getElementById("upload-btn");
         const pathEl = document.getElementById("path");
         const statusEl = document.getElementById("status");
+    
         let lastAppliedFileType = null;
         let currentPath = "";
-
+        let selectedFiles = [];   // 当前选中的文件列表
+    
         function setStatus(text) {
             statusEl.textContent = text;
         }
-
+    
         function setPath(path) {
             const normalized = (path || "").toString().trim();
             currentPath = normalized;
             pathEl.textContent = `当前路径：${normalized || "未上传"}`;
         }
-
+    
         function updateAcceptByType(options = {}) {
             const { clearSelection = false, resetStatus = false } = options;
             const fileType = fileTypeSelect.value || "any";
             const typeChanged = fileType !== lastAppliedFileType;
             fileInput.accept = ACCEPT_MAP[fileType] || "*/*";
+            folderInput.accept = ACCEPT_MAP[fileType] || "*/*";
             uploadBtn.textContent = fileType === "any" ? "上传文件" : `上传 .${fileType}`;
-            if ((clearSelection || typeChanged) && fileInput.value) {
+            if ((clearSelection || typeChanged)) {
                 fileInput.value = "";
+                folderInput.value = "";
+                selectedFiles = [];
             }
             if (resetStatus || typeChanged) {
                 setStatus(
                     fileType === "any"
-                        ? "等待选择本地文件..."
-                        : `等待选择 .${fileType} 文件...`
+                        ? "等待选择本地文件或文件夹..."
+                        : `等待选择 .${fileType} 文件或文件夹...`
                 );
             }
             lastAppliedFileType = fileType;
         }
-
+    
         function updateSubdirState() {
             const isInput = (uploadTargetSelect.value || "output") === "input";
             uploadSubdirSelect.disabled = !isInput;
             uploadSubdirSelect.style.opacity = isInput ? "1" : "0.6";
         }
-
+    
         async function refreshInputSubdirs() {
             try {
                 const resp = await fetch("/NDBox/list_input_subdirs", { method: "GET" });
@@ -212,110 +226,160 @@
                     uploadSubdirSelect.value = oldValue;
                 }
             } catch (e) {
-                // keep existing fallback options
+                // 保留现有回退选项
             }
         }
-
+    
+        // ========== 核心上传逻辑：支持多文件与文件夹 ==========
         async function UploadFiles() {
-            const file = fileInput.files && fileInput.files[0];
             const uploadTarget = uploadTargetSelect.value || "output";
             const uploadSubdir = uploadSubdirSelect.value || "3d";
             const fileType = fileTypeSelect.value || "any";
-            if (!file) {
-                setStatus("请先选择一个文件");
+    
+            if (selectedFiles.length === 0) {
+                setStatus("请先选择文件或文件夹");
                 return;
             }
-            if (file.size <= 0) {
-                setStatus("文件为空，无法上传");
+    
+            // 过滤符合类型要求的文件
+            const validFiles = [];
+            const skippedFiles = [];
+            for (const file of selectedFiles) {
+                if (file.size <= 0) {
+                    skippedFiles.push(`${file.name} (空文件)`);
+                    continue;
+                }
+                if (fileType !== "any" && !file.name.toLowerCase().endsWith(`.${fileType}`)) {
+                    skippedFiles.push(`${file.name} (类型不匹配)`);
+                    continue;
+                }
+                validFiles.push(file);
+            }
+    
+            if (validFiles.length === 0) {
+                setStatus("没有符合要求的文件可上传");
                 return;
             }
-            if (fileType !== "any" && !file.name.toLowerCase().endsWith(`.${fileType}`)) {
-                setStatus(`文件后缀需为 .${fileType}`);
-                return;
-            }
-
+    
             uploadBtn.disabled = true;
-            setStatus("上传中...");
-
-            try {
-                const form = new FormData();
-                form.append("file", file, file.name);
-                form.append("file_type", fileType);
-                form.append("upload_target", uploadTarget);
-                form.append("upload_subdir", uploadSubdir);
-
-                const resp = await fetch("/NDBox/upload_files", {
-                    method: "POST",
-                    body: form,
-                });
-                const data = await resp.json();
-
-                if (!resp.ok || !data?.ok) {
-                    throw new Error(data?.error || `HTTP ${resp.status}`);
-                }
-
-                const filePath = data.file_path || "";
-                const uploadedSize = Number.isFinite(data?.size) ? data.size : file.size;
-                const sizeKB = (uploadedSize / 1024).toFixed(2);
-                setPath(filePath);
-                setStatus(`上传成功，大小 ${sizeKB} KB，已写入节点参数`);
-
-                window.parent.postMessage(
-                    {
-                        type: "ndbox_files_uploaded",
-                        filePath,
-                        fileType,
-                        uploadTarget,
-                        uploadSubdir,
-                    },
-                    "*"
-                );
-            } catch (e) {
-                setStatus(`上传失败: ${e.message || e}`);
-            } finally {
-                uploadBtn.disabled = false;
-            }
-        }
-
-        function onMessage(event) {
-            const data = event.data || {};
-            if (data.type === "ndbox_files_state") {
-                const incomingPath =
-                    (typeof data.filePath === "string" && data.filePath)
-                    || (typeof data.npzPath === "string" && data.npzPath)
-                    || "";
-                // Avoid wiping uploaded path with transient empty sync payloads.
-                if (incomingPath || !currentPath) {
-                    setPath(incomingPath);
-                }
-                if (typeof data.fileType === "string" && ACCEPT_MAP[data.fileType]) {
-                    fileTypeSelect.value = data.fileType;
-                    updateAcceptByType({ clearSelection: false, resetStatus: false });
-                }
-                if (typeof data.uploadTarget === "string" && (data.uploadTarget === "output" || data.uploadTarget === "input")) {
-                    uploadTargetSelect.value = data.uploadTarget;
-                    updateSubdirState();
-                }
-                if (typeof data.uploadSubdir === "string" && data.uploadSubdir) {
-                    if ([...uploadSubdirSelect.options].some((o) => o.value === data.uploadSubdir)) {
-                        uploadSubdirSelect.value = data.uploadSubdir;
+            const total = validFiles.length;
+            let successCount = 0;
+            let failCount = 0;
+            const failedNames = [];
+    
+            for (let i = 0; i < total; i++) {
+                const file = validFiles[i];
+                setStatus(`正在上传 (${i + 1}/${total}): ${file.name}`);
+    
+                try {
+                    const form = new FormData();
+                    form.append("file", file, file.name);
+                    form.append("file_type", fileType);
+                    form.append("upload_target", uploadTarget);
+                    form.append("upload_subdir", uploadSubdir);
+    
+                    const resp = await fetch("/NDBox/upload_files", {
+                        method: "POST",
+                        body: form,
+                    });
+                    const data = await resp.json();
+    
+                    if (!resp.ok || !data?.ok) {
+                        throw new Error(data?.error || `HTTP ${resp.status}`);
                     }
+    
+                    successCount++;
+                    const filePath = data.file_path || "";
+                    setPath(filePath);
+    
+                    // 通知父窗口
+                    window.parent.postMessage(
+                        {
+                            type: "ndbox_files_uploaded",
+                            filePath,
+                            fileType,
+                            uploadTarget,
+                            uploadSubdir,
+                        },
+                        "*"
+                    );
+                } catch (e) {
+                    failCount++;
+                    failedNames.push(`${file.name}: ${e.message || e}`);
+                    console.warn(`[NDBox] 上传失败: ${file.name}`, e);
                 }
             }
+    
+            // 汇总结果
+            if (failCount === 0) {
+                setStatus(`全部上传成功 (${successCount} 个文件)`);
+            } else {
+                const failMsg = failedNames.join("; ");
+                setStatus(`上传完成：成功 ${successCount}，失败 ${failCount}。${failMsg}`);
+            }
+    
+            if (skippedFiles.length > 0) {
+                setStatus(statusEl.textContent + ` | 跳过 ${skippedFiles.length} 个文件`);
+            }
+    
+            uploadBtn.disabled = false;
         }
-
-        uploadBtn.addEventListener("click", UploadFiles);
+    
+        // ========== 选择文件按钮 ==========
+        chooseFilesBtn.addEventListener("click", () => {
+            fileInput.click();
+        });
+    
+        // ========== 选择文件夹按钮 ==========
+        chooseFolderBtn.addEventListener("click", () => {
+            folderInput.click();
+        });
+    
+        // ========== 文件选择变化时更新 selectedFiles ==========
         fileInput.addEventListener("change", () => {
-            const file = fileInput.files && fileInput.files[0];
+            const files = fileInput.files;
+            if (!files || files.length === 0) return;
+            selectedFiles = Array.from(files);
             const fileType = fileTypeSelect.value || "any";
-            if (!file) return;
-            if (fileType !== "any" && !file.name.toLowerCase().endsWith(`.${fileType}`)) {
-                setStatus(`当前仅支持 .${fileType}，请重新选择`);
+            // 类型校验
+            const invalidFiles = selectedFiles.filter(
+                (f) => fileType !== "any" && !f.name.toLowerCase().endsWith(`.${fileType}`)
+            );
+            if (invalidFiles.length > 0) {
+                setStatus(`以下文件类型不匹配：${invalidFiles.map(f => f.name).join(", ")}`);
                 fileInput.value = "";
+                selectedFiles = [];
                 return;
             }
-            setStatus(`已选择: ${file.name}`);
+            if (selectedFiles.length === 1) {
+                setStatus(`已选择: ${selectedFiles[0].name}`);
+            } else {
+                setStatus(`已选择 ${selectedFiles.length} 个文件`);
+            }
         });
+    
+        folderInput.addEventListener("change", () => {
+            const files = folderInput.files;
+            if (!files || files.length === 0) return;
+            selectedFiles = Array.from(files);
+            const fileType = fileTypeSelect.value || "any";
+            // 过滤出符合类型的文件（文件夹中可能包含多种文件）
+            const validFiles = selectedFiles.filter(
+                (f) => fileType === "any" || f.name.toLowerCase().endsWith(`.${fileType}`)
+            );
+            if (validFiles.length === 0) {
+                setStatus(`文件夹中没有 .${fileType} 类型的文件`);
+                folderInput.value = "";
+                selectedFiles = [];
+                return;
+            }
+            selectedFiles = validFiles;
+            setStatus(`已选择文件夹，包含 ${selectedFiles.length} 个文件`);
+        });
+    
+        // ========== 其他控件事件 ==========
+        uploadBtn.addEventListener("click", UploadFiles);
+    
         fileTypeSelect.addEventListener("change", () => {
             updateAcceptByType({ clearSelection: true, resetStatus: true });
             window.parent.postMessage(
@@ -326,6 +390,7 @@
                 "*"
             );
         });
+    
         uploadTargetSelect.addEventListener("change", () => {
             updateSubdirState();
             window.parent.postMessage(
@@ -336,6 +401,7 @@
                 "*"
             );
         });
+    
         uploadSubdirSelect.addEventListener("change", () => {
             window.parent.postMessage(
                 {
@@ -345,7 +411,35 @@
                 "*"
             );
         });
-        window.addEventListener("message", onMessage);
+    
+        window.addEventListener("message", (event) => {
+            const data = event.data || {};
+            if (data.type === "ndbox_files_state") {
+                const incomingPath =
+                    (typeof data.filePath === "string" && data.filePath)
+                    || (typeof data.npzPath === "string" && data.npzPath)
+                    || "";
+                if (incomingPath || !currentPath) {
+                    setPath(incomingPath);
+                }
+                if (typeof data.fileType === "string" && ACCEPT_MAP[data.fileType]) {
+                    fileTypeSelect.value = data.fileType;
+                    updateAcceptByType({ clearSelection: false, resetStatus: false });
+                }
+                if (typeof data.uploadTarget === "string" &&
+                    (data.uploadTarget === "output" || data.uploadTarget === "input")) {
+                    uploadTargetSelect.value = data.uploadTarget;
+                    updateSubdirState();
+                }
+                if (typeof data.uploadSubdir === "string" && data.uploadSubdir) {
+                    if ([...uploadSubdirSelect.options].some((o) => o.value === data.uploadSubdir)) {
+                        uploadSubdirSelect.value = data.uploadSubdir;
+                    }
+                }
+            }
+        });
+    
+        // 初始化
         updateAcceptByType({ clearSelection: false, resetStatus: true });
         updateSubdirState();
         refreshInputSubdirs();
