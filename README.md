@@ -1,6 +1,6 @@
 # ComfyUI-Sundaybox
 
-![](assets/Snipaste_2026-04-27_16-41-58.png)
+![](assets/PixPin_2026-09-19_23-45-39.png)
 
 `ComfyUI-Sundaybox` 是一个面向 ComfyUI 的实用插件，当前提供两个节点：
 
