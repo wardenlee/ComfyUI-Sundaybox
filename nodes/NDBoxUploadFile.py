@@ -515,6 +515,8 @@ class NDBox_UploadFiles:
         }
 
 
+WEB_DIRECTORY = "./web"
+
 NODE_CLASS_MAPPINGS = {
     "NDBox_UploadFiles": NDBox_UploadFiles,
 }
