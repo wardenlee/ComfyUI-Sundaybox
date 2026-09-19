@@ -1,161 +1,635 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>NDBox Download File</title>
-    <style>
-        body {
-            margin: 0;
-            padding: 10px;
-            background: #1a1a1a;
-            color: #f0f0f0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            font-size: 13px;
-        }
-        #container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        #file-info {
-            padding: 8px;
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.4);
-            word-break: break-all;
-        }
-        #status {
-            font-size: 12px;
-            opacity: 0.8;
-        }
-        #download-row {
-            display: flex;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 8px;
-        }
-        #download-btn {
-            cursor: pointer;
-            padding: 6px 12px;
-            border-radius: 4px;
-            border: 1px solid #555;
-            background: #2b2b2b;
-            color: #fff;
-            font-size: 13px;
-        }
-        #download-btn[disabled] {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-    </style>
+<meta charset="utf-8">
+<style>
+    * { box-sizing: border-box; }
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: #1a1a1a;
+        color: #d4d4d4;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        height: 100%;
+        overflow: hidden;
+    }
+    #root {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        padding: 6px 8px;
+        gap: 5px;
+    }
+    .row {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+    }
+    select, input[type="text"] {
+        background: #2a2a2a;
+        color: #d4d4d4;
+        border: 1px solid #3a3a3a;
+        border-radius: 4px;
+        padding: 3px 6px;
+        font-size: 12px;
+        flex: 1;
+        min-width: 0;
+        outline: none;
+    }
+    select:focus, input[type="text"]:focus { border-color: #5a5a5a; }
+    button {
+        background: #333;
+        color: #e0e0e0;
+        border: 1px solid #454545;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 12px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: #404040; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.danger { background: #7a1f1f; border-color: #a82828; color: #ffd0d0; }
+    button.danger:hover { background: #952525; }
+    .status {
+        background: #111;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 11px;
+        color: #b0b0b0;
+        min-height: 18px;
+        line-height: 1.5;
+        word-break: break-all;
+    }
+    .status.path { color: #7ec8e3; }
+    .fm {
+        border: 1px solid #303030;
+        border-radius: 5px;
+        background: #141414;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        flex: 1;
+        min-height: 0;
+    }
+    .fm-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 8px;
+        background: #202020;
+        border-bottom: 1px solid #303030;
+        font-size: 11px;
+        color: #c0c0c0;
+    }
+    .fm-header .title { font-weight: 600; color: #e8e8e8; }
+    .fm-toolbar {
+        display: flex;
+        gap: 4px;
+        padding: 4px 6px;
+        background: #1a1a1a;
+        border-bottom: 1px solid #282828;
+    }
+    .fm-toolbar button { padding: 3px 8px; font-size: 11px; }
+    .fm-list {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 40px;
+        max-height: 220px;
+    }
+    .fm-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 8px;
+        border-bottom: 1px solid #1e1e1e;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+    .fm-item:hover { background: #1e1e1e; }
+    .fm-item input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+    .fm-item .icon { flex: 0 0 auto; }
+    .fm-item .name {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #d0d0d0;
+    }
+    .fm-item .size, .fm-item .mtime {
+        flex: 0 0 auto;
+        color: #808080;
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    .fm-item .del {
+        flex: 0 0 auto;
+        cursor: pointer;
+        color: #a05050;
+        padding: 0 3px;
+        font-weight: bold;
+        user-select: none;
+    }
+    .fm-item .del:hover { color: #ff6060; }
+    .fm-empty {
+        padding: 14px 8px;
+        text-align: center;
+        color: #606060;
+        font-size: 11px;
+    }
+    .fm-hint {
+        padding: 3px 8px;
+        font-size: 10px;
+        color: #806040;
+        background: #201a10;
+        border-top: 1px solid #302818;
+    }
+    .fm-hint:empty { display: none; }
+</style>
 </head>
 <body>
-    <div id="container">
-        <div id="file-info">等待节点传入文件路径…</div>
-        <div id="download-row">
-            <button id="download-btn" type="button" disabled>下载文件</button>
-            <div id="status">Viewer not ready</div>
-        </div>
+<div id="root">
+    <div class="row">
+        <select id="upload-target">
+            <option value="input">input</option>
+            <option value="output">output</option>
+        </select>
+        <select id="upload-subdir"></select>
+        <select id="file-type">
+            <option value="any">any</option>
+            <option value="txt">txt</option>
+            <option value="csv">csv</option>
+            <option value="json">json</option>
+            <option value="npz">npz</option>
+            <option value="npy">npy</option>
+            <option value="bvh">bvh</option>
+            <option value="fbx">fbx</option>
+            <option value="obj">obj</option>
+            <option value="glb">glb</option>
+            <option value="png">png</option>
+            <option value="jpg">jpg</option>
+            <option value="jpeg">jpeg</option>
+            <option value="webp">webp</option>
+            <option value="gif">gif</option>
+            <option value="bmp">bmp</option>
+        </select>
     </div>
 
-    <script>
-        // 全局状态 + 函数（方便外部直接调用 initViewer）
-        let currentFileName = null;
-        let currentDownloadId = null;
-        let currentFileExists = false;
-        let currentFileSizeBytes = null;
-        let currentFilePath = null;
+    <div class="row">
+        <button id="choose-files-btn" type="button">选择文件</button>
+        <button id="choose-folder-btn" type="button">选择文件夹</button>
+        <button id="upload-btn" type="button">上传文件</button>
+    </div>
 
-        const fileInfoEl = document.getElementById('file-info');
-        const statusEl = document.getElementById('status');
-        const downloadBtn = document.getElementById('download-btn');
+    <div id="path" class="status path">当前路径：未上传</div>
+    <div id="status" class="status">等待选择本地文件或文件夹...</div>
 
-        function updateUI() {
-            console.log("[NDBoxDownloadFile][iframe] updateUI:", {
-                currentFileName,
-                currentDownloadId,
-                currentFileExists,
-                currentFileSizeBytes,
-                currentFilePath,
-            });
-            if (!currentFileName || !currentDownloadId) {
-                fileInfoEl.textContent = "未收到文件信息。";
-                downloadBtn.disabled = true;
-                statusEl.textContent = "No download token provided from node.";
+    <div class="fm">
+        <div class="fm-header">
+            <span class="title" id="fm-title">📂 input / (根目录)</span>
+            <span id="fm-count">共 0 个文件</span>
+        </div>
+        <div class="fm-toolbar">
+            <button id="refresh-btn" type="button">🔄 刷新</button>
+            <button id="clear-btn" type="button">🗑️ 清空</button>
+            <button id="batch-del-btn" type="button" disabled>✅ 删除选中</button>
+        </div>
+        <div class="fm-list" id="fm-list"></div>
+        <div class="fm-hint" id="fm-hint"></div>
+    </div>
+</div>
+
+<input id="file-input" type="file" multiple style="display:none;">
+<input id="folder-input" type="file" webkitdirectory style="display:none;">
+
+<script>
+(function () {
+    "use strict";
+
+    const ROOT_SUBDIR_MARKER = "(input根目录)";
+    const MAX_LIST = 200;
+
+    const $ = (id) => document.getElementById(id);
+    const uploadTargetSelect = $("upload-target");
+    const uploadSubdirSelect = $("upload-subdir");
+    const fileTypeSelect     = $("file-type");
+    const chooseFilesBtn     = $("choose-files-btn");
+    const chooseFolderBtn    = $("choose-folder-btn");
+    const uploadBtn          = $("upload-btn");
+    const pathEl             = $("path");
+    const statusEl           = $("status");
+    const fmTitle            = $("fm-title");
+    const fmCount            = $("fm-count");
+    const fmList             = $("fm-list");
+    const fmHint             = $("fm-hint");
+    const refreshBtn         = $("refresh-btn");
+    const clearBtn           = $("clear-btn");
+    const batchDelBtn        = $("batch-del-btn");
+    const fileInput          = $("file-input");
+    const folderInput        = $("folder-input");
+
+    let selectedFiles = [];
+    let currentPath = "";
+    let clearConfirming = false;
+    let clearConfirmTimer = null;
+    let currentFileList = [];
+
+    // ---------------- 工具函数 ----------------
+    function setStatus(text) { statusEl.textContent = text; }
+    function setPath(p) {
+        currentPath = (p || "").toString().trim();
+        pathEl.textContent = "当前路径：" + (currentPath || "未上传");
+    }
+    function normalizeSubdir(v) {
+        return (!v || v === ROOT_SUBDIR_MARKER) ? "" : v;
+    }
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + " KB";
+        if (bytes < 1024 * 1024 * 1024) return (bytes / 1024 / 1024).toFixed(2) + " MB";
+        return (bytes / 1024 / 1024 / 1024).toFixed(2) + " GB";
+    }
+    function formatTime(ts) {
+        const d = new Date(ts * 1000);
+        const now = new Date();
+        const hh = String(d.getHours()).padStart(2, "0");
+        const mm = String(d.getMinutes()).padStart(2, "0");
+        if (d.toDateString() === now.toDateString()) return hh + ":" + mm;
+        const y = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, "0");
+        const da = String(d.getDate()).padStart(2, "0");
+        return y + "-" + mo + "-" + da + " " + hh + ":" + mm;
+    }
+    function notifyParent(type, data) {
+        const msg = Object.assign({ type: type }, data || {});
+        try {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage(msg, "*");
+            } else {
+                window.postMessage(msg, "*");
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // ---------------- 子目录下拉框 ----------------
+    async function refreshSubdirs() {
+        const target = uploadTargetSelect.value || "input";
+        const oldValue = uploadSubdirSelect.value;
+        try {
+            const resp = await fetch("/NDBox/list_input_subdirs?upload_target=" +
+                encodeURIComponent(target));
+            const data = await resp.json();
+            if (!data || !data.ok || !Array.isArray(data.subdirs)) return;
+            uploadSubdirSelect.innerHTML = "";
+            for (const s of data.subdirs) {
+                const opt = document.createElement("option");
+                opt.value = s;
+                opt.textContent = s;
+                uploadSubdirSelect.appendChild(opt);
+            }
+            if ([...uploadSubdirSelect.options].some(o => o.value === oldValue)) {
+                uploadSubdirSelect.value = oldValue;
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    // ---------------- 文件列表 ----------------
+    function updateFMTitle() {
+        const target = uploadTargetSelect.value || "input";
+        const subdir = normalizeSubdir(uploadSubdirSelect.value);
+        const subdirText = subdir || "(根目录)";
+        fmTitle.textContent = "📂 " + target + " / " + subdirText;
+    }
+
+    function updateBatchBtnState() {
+        const n = document.querySelectorAll(".fm-item .fm-checkbox:checked").length;
+        batchDelBtn.disabled = n === 0;
+        batchDelBtn.textContent = n > 0 ? ("✅ 删除选中 (" + n + ")") : "✅ 删除选中";
+    }
+
+    function renderFileList(data) {
+        currentFileList = (data && data.files) || [];
+        fmList.innerHTML = "";
+
+        if (currentFileList.length === 0) {
+            const empty = document.createElement("div");
+            empty.className = "fm-empty";
+            empty.textContent = "当前目录暂无文件";
+            fmList.appendChild(empty);
+        } else {
+            for (const f of currentFileList) {
+                fmList.appendChild(makeFileItem(f));
+            }
+        }
+
+        const total = data && typeof data.total === "number" ? data.total : currentFileList.length;
+        fmCount.textContent = "共 " + total + " 个文件" +
+            (data && data.truncated ? "（仅显示最新 " + MAX_LIST + " 个）" : "");
+
+        if (data && data.truncated) {
+            fmHint.textContent = "提示：本目录文件超过 " + MAX_LIST + " 个，仅显示最新的 " + MAX_LIST + " 个。";
+        } else {
+            fmHint.textContent = "";
+        }
+        updateBatchBtnState();
+    }
+
+    function makeFileItem(f) {
+        const row = document.createElement("div");
+        row.className = "fm-item";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.className = "fm-checkbox";
+        cb.dataset.name = f.name;
+        cb.addEventListener("change", updateBatchBtnState);
+        row.appendChild(cb);
+
+        const icon = document.createElement("span");
+        icon.className = "icon";
+        icon.textContent = "📄";
+        row.appendChild(icon);
+
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = f.name;
+        name.title = f.name;
+        row.appendChild(name);
+
+        const size = document.createElement("span");
+        size.className = "size";
+        size.textContent = formatSize(f.size);
+        row.appendChild(size);
+
+        const mtime = document.createElement("span");
+        mtime.className = "mtime";
+        mtime.textContent = formatTime(f.mtime);
+        row.appendChild(mtime);
+
+        const del = document.createElement("span");
+        del.className = "del";
+        del.textContent = "✕";
+        del.title = "删除此文件";
+        del.addEventListener("click", () => deleteOne(f.name));
+        row.appendChild(del);
+
+        return row;
+    }
+
+    async function refreshFileList() {
+        updateFMTitle();
+        const target = uploadTargetSelect.value || "input";
+        const subdir = normalizeSubdir(uploadSubdirSelect.value);
+        const fileType = fileTypeSelect.value || "any";
+        try {
+            const url = "/NDBox/list_files_in_subdir?upload_target=" + encodeURIComponent(target) +
+                "&upload_subdir=" + encodeURIComponent(subdir) +
+                "&file_type=" + encodeURIComponent(fileType);
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (!data || !data.ok) {
+                setStatus("列表刷新失败：" + (data && data.error ? data.error : "unknown"));
                 return;
             }
+            renderFileList(data);
+        } catch (e) {
+            setStatus("列表刷新失败：" + (e.message || e));
+        }
+    }
 
-            let sizeText = "";
-            if (typeof currentFileSizeBytes === "number" && currentFileSizeBytes >= 0) {
-                const kb = currentFileSizeBytes / 1024;
-                const mb = kb / 1024;
-                if (mb >= 1) {
-                    sizeText = ` (${mb.toFixed(2)} MB)`;
-                } else if (kb >= 1) {
-                    sizeText = ` (${kb.toFixed(2)} KB)`;
-                } else {
-                    sizeText = ` (${currentFileSizeBytes} B)`;
+    // ---------------- 上传 ----------------
+    async function UploadFiles() {
+        if (selectedFiles.length === 0) {
+            setStatus("请先选择文件或文件夹");
+            return;
+        }
+        const target = uploadTargetSelect.value || "input";
+        const subdirRaw = uploadSubdirSelect.value || ROOT_SUBDIR_MARKER;
+        const fileType = fileTypeSelect.value || "any";
+
+        const valid = [];
+        const skipped = [];
+        for (const file of selectedFiles) {
+            if (file.size <= 0) { skipped.push(file.name + " (空文件)"); continue; }
+            if (fileType !== "any" && !file.name.toLowerCase().endsWith("." + fileType)) {
+                skipped.push(file.name + " (类型不匹配)");
+                continue;
+            }
+            valid.push(file);
+        }
+        if (valid.length === 0) {
+            setStatus("没有符合要求的文件可上传");
+            return;
+        }
+
+        uploadBtn.disabled = true;
+        const total = valid.length;
+        let success = 0, fail = 0;
+        const failed = [];
+
+        for (let i = 0; i < total; i++) {
+            const file = valid[i];
+            setStatus("正在上传 (" + (i + 1) + "/" + total + ")：" + file.name);
+            try {
+                const form = new FormData();
+                form.append("file", file, file.name);
+                form.append("file_type", fileType);
+                form.append("upload_target", target);
+                form.append("upload_subdir", subdirRaw);
+
+                const resp = await fetch("/NDBox/upload_files", { method: "POST", body: form });
+                const data = await resp.json();
+                if (!resp.ok || !data || !data.ok) {
+                    throw new Error((data && data.error) || ("HTTP " + resp.status));
+                }
+                success++;
+                setPath(data.file_path || "");
+                notifyParent("ndbox_files_uploaded", { filePath: data.file_path || "" });
+            } catch (e) {
+                fail++;
+                failed.push(file.name + ": " + (e.message || e));
+            }
+        }
+
+        uploadBtn.disabled = false;
+        if (fail === 0) {
+            setStatus("全部上传成功 (" + success + " 个文件)");
+        } else {
+            setStatus("上传完成：成功 " + success + "，失败 " + fail + "。" + failed.join("; "));
+        }
+        if (skipped.length > 0) {
+            setStatus(statusEl.textContent + " | 跳过 " + skipped.length + " 个");
+        }
+
+        selectedFiles = [];
+        fileInput.value = "";
+        folderInput.value = "";
+
+        await refreshFileList();
+        notifyParent("ndbox_files_changed", {});
+    }
+
+    // ---------------- 删除 ----------------
+    async function deleteOne(name) {
+        if (!confirm("确定删除 " + name + " 吗？")) return;
+        await doDelete([name]);
+    }
+
+    async function doDelete(names) {
+        if (!names || names.length === 0) return;
+        const target = uploadTargetSelect.value || "input";
+        const subdir = normalizeSubdir(uploadSubdirSelect.value);
+        setStatus("正在删除 " + names.length + " 个文件...");
+        try {
+            const resp = await fetch("/NDBox/delete_files", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    upload_target: target,
+                    upload_subdir: subdir,
+                    names: names,
+                }),
+            });
+            const data = await resp.json();
+            if (!data || !data.ok) throw new Error((data && data.error) || "删除失败");
+            const okCount = (data.deleted || []).length;
+            const failCount = (data.failed || []).length;
+            setStatus("删除完成：成功 " + okCount + "，失败 " + failCount);
+
+            // 检查当前 file_path 是否在删除列表中
+            const subdirPrefix = subdir ? (target + "/" + subdir + "/") : (target + "/");
+            for (const n of (data.deleted || [])) {
+                if (currentPath === subdirPrefix + n) {
+                    setPath("");
+                    notifyParent("ndbox_file_path_cleared", {});
+                    break;
                 }
             }
 
-            const pathText = currentFilePath ? `\n路径: ${currentFilePath}` : "";
-            fileInfoEl.textContent = `${pathText}${sizeText}`;
-
-            if (!currentFileExists) {
-                statusEl.textContent = "后端报告该文件不存在，无法下载。";
-                downloadBtn.disabled = true;
-            } else {
-                statusEl.textContent = "文件已就绪，点击按钮通过安全下载链接获取。";
-                downloadBtn.disabled = false;
-            }
+            await refreshFileList();
+            notifyParent("ndbox_files_changed", {});
+        } catch (e) {
+            setStatus("删除失败：" + (e.message || e));
         }
+    }
 
-        function downloadFile() {
-            if (!currentDownloadId) return;
+    function deleteSelected() {
+        const checked = document.querySelectorAll(".fm-item .fm-checkbox:checked");
+        const names = [];
+        checked.forEach(cb => names.push(cb.dataset.name));
+        if (names.length === 0) return;
+        if (!confirm("确定删除选中的 " + names.length + " 个文件吗？")) return;
+        doDelete(names);
+    }
 
-            const url = `/NDBox/download_file/${encodeURIComponent(currentDownloadId)}`;
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = currentFileName || "download.bin";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-
-            // 通知父窗口一次操作（可选）
-            try {
-                window.parent.postMessage({ type: "NDBOX_DOWNLOAD_TRIGGERED", fileName: currentFileName, downloadId: currentDownloadId }, "*");
-            } catch (e) {
-                console.warn("[NDBoxDownloadFile] postMessage failed:", e);
-            }
+    // ---------------- 清空目录 ----------------
+    function onClearClick() {
+        if (!clearConfirming) {
+            clearConfirming = true;
+            clearBtn.textContent = "⚠️ 再点一次确认";
+            clearBtn.classList.add("danger");
+            clearConfirmTimer = setTimeout(() => {
+                clearConfirming = false;
+                clearBtn.textContent = "🗑️ 清空";
+                clearBtn.classList.remove("danger");
+            }, 3000);
+            return;
         }
+        clearTimeout(clearConfirmTimer);
+        clearConfirming = false;
+        clearBtn.textContent = "🗑️ 清空";
+        clearBtn.classList.remove("danger");
+        doClear();
+    }
 
-        function handleMessage(event) {
-            console.log("[NDBoxDownloadFile][iframe] received message:", event.data);
-            const data = event.data || {};
-
-            if (data.type === "loadFileForDownload") {
-                currentFileName = data.fileName || null;
-                currentDownloadId = data.downloadId || null;
-                currentFileExists = !!data.fileExists;
-                currentFileSizeBytes = (typeof data.fileSizeBytes === "number") ? data.fileSizeBytes : null;
-                currentFilePath = data.filePath || null;
-                updateUI();
-            }
+    async function doClear() {
+        const target = uploadTargetSelect.value || "input";
+        const subdir = normalizeSubdir(uploadSubdirSelect.value);
+        setStatus("正在清空当前目录...");
+        try {
+            const resp = await fetch("/NDBox/clear_subdir", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ upload_target: target, upload_subdir: subdir }),
+            });
+            const data = await resp.json();
+            if (!data || !data.ok) throw new Error((data && data.error) || "清空失败");
+            setStatus("已清空 " + (data.deleted_count || 0) + " 个文件");
+            setPath("");
+            notifyParent("ndbox_file_path_cleared", {});
+            await refreshFileList();
+            notifyParent("ndbox_files_changed", {});
+        } catch (e) {
+            setStatus("清空失败：" + (e.message || e));
         }
+    }
 
-        function initViewer() {
-            // 入口函数：绑定事件并通知父窗口
-            downloadBtn.addEventListener('click', downloadFile);
-            window.addEventListener("message", handleMessage);
+    // ---------------- 事件绑定 ----------------
+    chooseFilesBtn.addEventListener("click", () => fileInput.click());
+    chooseFolderBtn.addEventListener("click", () => folderInput.click());
+    uploadBtn.addEventListener("click", UploadFiles);
+    refreshBtn.addEventListener("click", () => {
+        refreshSubdirs().then(refreshFileList);
+    });
+    clearBtn.addEventListener("click", onClearClick);
+    batchDelBtn.addEventListener("click", deleteSelected);
 
-            window.parent.postMessage({ type: "NDBOX_DOWNLOAD_VIEW_READY" }, "*");
-            statusEl.textContent = "Viewer ready, waiting for download token…";
+    fileInput.addEventListener("change", () => {
+        const files = fileInput.files;
+        if (!files || files.length === 0) return;
+        selectedFiles = Array.from(files);
+        setStatus("已选择 " + selectedFiles.length + " 个文件");
+    });
+    folderInput.addEventListener("change", () => {
+        const files = folderInput.files;
+        if (!files || files.length === 0) return;
+        selectedFiles = Array.from(files);
+        setStatus("已选择文件夹，包含 " + selectedFiles.length + " 个文件");
+    });
+
+    uploadTargetSelect.addEventListener("change", () => {
+        notifyParent("ndbox_files_upload_target_changed", { uploadTarget: uploadTargetSelect.value });
+        refreshSubdirs().then(refreshFileList);
+    });
+    uploadSubdirSelect.addEventListener("change", () => {
+        notifyParent("ndbox_files_upload_subdir_changed", { uploadSubdir: uploadSubdirSelect.value });
+        refreshFileList();
+    });
+    fileTypeSelect.addEventListener("change", () => {
+        notifyParent("ndbox_files_file_type_changed", { fileType: fileTypeSelect.value });
+        refreshFileList();
+    });
+
+    // ---------------- 与父窗口通信 ----------------
+    window.addEventListener("message", (event) => {
+        const data = event.data || {};
+        if (!data || typeof data !== "object") return;
+        if (data.type === "ndbox_files_state") {
+            if (data.uploadTarget) uploadTargetSelect.value = data.uploadTarget;
+            if (data.fileType) fileTypeSelect.value = data.fileType;
+            if (data.filePath) setPath(data.filePath);
+            refreshSubdirs().then(() => {
+                if (data.uploadSubdir !== undefined) {
+                    const v = data.uploadSubdir || ROOT_SUBDIR_MARKER;
+                    if ([...uploadSubdirSelect.options].some(o => o.value === v)) {
+                        uploadSubdirSelect.value = v;
+                    }
+                }
+                refreshFileList();
+            });
         }
+        if (data.type === "ndbox_files_refresh") {
+            refreshSubdirs().then(refreshFileList);
+        }
+    });
 
-        // IIFE 作为自动入口，只负责调用 initViewer；initViewer 本身在外面可复用
-        (function () {
-            initViewer();
-        })();
-    </script>
+    // ---------------- 初始化 ----------------
+    refreshSubdirs().then(refreshFileList);
+    notifyParent("ndbox_files_iframe_ready", {});
+})();
+</script>
 </body>
 </html>
-
